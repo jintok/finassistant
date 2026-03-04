@@ -3,6 +3,7 @@
 ## Development Commands
 
 ### Backend
+- Install: `cd backend && uv sync`
 - Run: `cd backend && python -m app.main`
 - Format: `cd backend && black .`
 - Type check: `cd backend && mypy .`

@@ -4,8 +4,8 @@ A personal financial assistant for portfolio management, news analysis, and mark
 
 ## Tech Stack
 
-- **Backend**: Python, FastAPI
-- **Frontend**: React, Vite
+- **Backend**: Python, FastAPI, uv
+- **Frontend**: Vue 2
 - **Database**: SQLite (configurable)
 
 ## Project Structure
@@ -13,14 +13,17 @@ A personal financial assistant for portfolio management, news analysis, and mark
 ```
 finassistant/
 ├── backend/           # Python FastAPI backend
-│   ├── app/
-│   │   ├── api/       # API endpoints
-│   │   ├── core/      # Core functionality
-│   │   ├── models/    # Data models
-│   │   └── services/  # Business logic
-│   └── requirements.txt
-├── frontend/          # React frontend
+│   └── app/
+│       ├── api/       # API endpoints
+│       ├── core/      # Core functionality
+│       ├── models/    # Data models
+│       └── services/  # Business logic
+├── frontend/          # Vue 2 frontend
 │   └── src/
+│       ├── components/
+│       ├── views/
+│       ├── router/
+│       └── assets/
 ├── data/              # Local data storage
 ├── notebooks/         # Jupyter notebooks
 └── tests/             # Test files
@@ -32,9 +35,7 @@ finassistant/
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-pip install -r requirements.txt
+uv sync
 python -m app.main
 ```
 
