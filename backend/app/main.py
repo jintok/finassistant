@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.portfolio import router as portfolio_router, prices_router
+
 app = FastAPI(
     title="FinAssistant API",
     description="Financial Assistant Backend API",
-    version="0.1.0"
+    version="0.1.0",
 )
 
 app.add_middleware(
@@ -14,6 +16,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(portfolio_router)
+app.include_router(prices_router)
 
 
 @app.get("/")
@@ -28,4 +33,5 @@ def health():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
