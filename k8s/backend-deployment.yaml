@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finassistant-backend
+  labels:
+    app: finassistant-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: finassistant-backend
+  template:
+    metadata:
+      labels:
+        app: finassistant-backend
+    spec:
+      containers:
+      - name: backend
+        image: finassistant-backend:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          value: "sqlite:///./finassistant.db"
+        volumeMounts:
+        - name: data
+          mountPath: /app
+      volumes:
+      - name: data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: finassistant-backend
+spec:
+  selector:
+    app: finassistant-backend
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP

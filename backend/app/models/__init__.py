@@ -4,9 +4,12 @@ from app.models.portfolio import (
     Position,
     Transaction,
     PortfolioSnapshot,
+    ImportJob,
     AccountType,
     AssetType,
     TransactionType,
+    ImportStatus,
+    SourceType,
 )
 
 __all__ = [
@@ -15,7 +18,10 @@ __all__ = [
     "Position",
     "Transaction",
     "PortfolioSnapshot",
+    "ImportJob",
     "AccountType",
     "AssetType",
     "TransactionType",
+    "ImportStatus",
+    "SourceType",
 ]

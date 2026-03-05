@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.portfolio import router as portfolio_router, prices_router
+from app.api.portfolio import router as portfolio_router, prices_router, imports_router
 
 app = FastAPI(
     title="FinAssistant API",
@@ -19,6 +19,7 @@ app.add_middleware(
 
 app.include_router(portfolio_router)
 app.include_router(prices_router)
+app.include_router(imports_router)
 
 
 @app.get("/")

@@ -3,7 +3,13 @@ from decimal import Decimal
 from typing import Optional, List, Any
 from pydantic import BaseModel, Field
 
-from app.models.portfolio import AccountType, AssetType, TransactionType
+from app.models.portfolio import (
+    AccountType,
+    AssetType,
+    TransactionType,
+    ImportStatus,
+    SourceType,
+)
 
 
 class PortfolioBase(BaseModel):
@@ -207,3 +213,59 @@ class PriceUpdate(BaseModel):
 
 class PriceUpdateBatch(BaseModel):
     prices: List[PriceUpdate]
+
+
+class ExtractedPosition(BaseModel):
+    asset_symbol: str
+    asset_name: Optional[str] = None
+    asset_type: Optional[AssetType] = None
+    quantity: Optional[Decimal] = None
+    avg_cost: Optional[Decimal] = None
+    current_price: Optional[Decimal] = None
+    trade_currency: Optional[str] = None
+    confidence: Optional[float] = None
+
+
+class ExtractedTransaction(BaseModel):
+    asset_symbol: str
+    transaction_type: Optional[TransactionType] = None
+    quantity: Optional[Decimal] = None
+    price_per_unit: Optional[Decimal] = None
+    total_amount: Optional[Decimal] = None
+    currency: Optional[str] = None
+    transaction_date: Optional[datetime] = None
+    confidence: Optional[float] = None
+
+
+class ImportJobCreate(BaseModel):
+    source_type: SourceType
+
+
+class ImportJobUpdate(BaseModel):
+    confirmed_positions: Optional[List[ExtractedPosition]] = None
+    confirmed_transactions: Optional[List[ExtractedTransaction]] = None
+    account_mapping: Optional[dict] = None
+
+
+class ImportJobResponse(BaseModel):
+    id: str
+    portfolio_id: str
+    status: ImportStatus
+    source_type: SourceType
+    screenshot_path: Optional[str] = None
+    extracted_positions: Optional[List[ExtractedPosition]] = None
+    extracted_transactions: Optional[List[ExtractedTransaction]] = None
+    confirmed_positions: Optional[List[ExtractedPosition]] = None
+    confirmed_transactions: Optional[List[ExtractedTransaction]] = None
+    account_mapping: Optional[dict] = None
+    error_message: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AccountMappingItem(BaseModel):
+    source_name: str
+    target_account_id: Optional[str] = None

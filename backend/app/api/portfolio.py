@@ -12,6 +12,8 @@ from app.models.portfolio import (
     Position,
     Transaction,
     PortfolioSnapshot,
+    ImportJob,
+    ImportStatus,
 )
 from app.schemas.portfolio import (
     PortfolioCreate,
@@ -32,6 +34,11 @@ from app.schemas.portfolio import (
     PortfolioSnapshotResponse,
     PositionWithTransactions,
     PriceUpdateBatch,
+    ImportJobCreate,
+    ImportJobUpdate,
+    ImportJobResponse,
+    ExtractedPosition,
+    ExtractedTransaction,
 )
 from app.services.price_feed import price_feed
 
@@ -455,3 +462,193 @@ def get_price(symbol: str, currency: str = "USD"):
     if price is None:
         raise HTTPException(status_code=404, detail="Price not found")
     return {"symbol": symbol, "price": price, "currency": currency}
+
+
+imports_router = APIRouter(prefix="/imports", tags=["imports"])
+
+
+@imports_router.post("/start", response_model=ImportJobResponse)
+def start_import(
+    portfolio_id: str,
+    import_data: ImportJobCreate,
+    db: Session = Depends(get_db),
+):
+    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    db_import = ImportJob(
+        portfolio_id=portfolio_id,
+        source_type=import_data.source_type,
+        status=ImportStatus.PENDING,
+    )
+    db.add(db_import)
+    db.commit()
+    db.refresh(db_import)
+    return db_import
+
+
+@imports_router.get("/{import_id}", response_model=ImportJobResponse)
+def get_import(import_id: str, db: Session = Depends(get_db)):
+    import_job = db.query(ImportJob).filter(ImportJob.id == import_id).first()
+    if not import_job:
+        raise HTTPException(status_code=404, detail="Import job not found")
+    return import_job
+
+
+@imports_router.patch("/{import_id}/review", response_model=ImportJobResponse)
+def review_import(
+    import_id: str,
+    review_data: ImportJobUpdate,
+    db: Session = Depends(get_db),
+):
+    import_job = db.query(ImportJob).filter(ImportJob.id == import_id).first()
+    if not import_job:
+        raise HTTPException(status_code=404, detail="Import job not found")
+
+    if import_job.status not in [ImportStatus.REVIEWING, ImportStatus.PENDING]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot review import in {import_job.status} status",
+        )
+
+    if review_data.confirmed_positions is not None:
+        import_job.confirmed_positions = [
+            p.model_dump() for p in review_data.confirmed_positions
+        ]
+    if review_data.confirmed_transactions is not None:
+        import_job.confirmed_transactions = [
+            t.model_dump() for t in review_data.confirmed_transactions
+        ]
+    if review_data.account_mapping is not None:
+        import_job.account_mapping = review_data.account_mapping
+
+    import_job.status = ImportStatus.REVIEWING
+    db.commit()
+    db.refresh(import_job)
+    return import_job
+
+
+@imports_router.post("/{import_id}/confirm", response_model=ImportJobResponse)
+def confirm_import(import_id: str, db: Session = Depends(get_db)):
+    import_job = db.query(ImportJob).filter(ImportJob.id == import_id).first()
+    if not import_job:
+        raise HTTPException(status_code=404, detail="Import job not found")
+
+    if import_job.status != ImportStatus.REVIEWING:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot confirm import in {import_job.status} status. Please review first.",
+        )
+
+    if not import_job.confirmed_positions and not import_job.confirmed_transactions:
+        raise HTTPException(status_code=400, detail="No confirmed data to import")
+
+    portfolio = (
+        db.query(Portfolio).filter(Portfolio.id == import_job.portfolio_id).first()
+    )
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    account_mapping = import_job.account_mapping or {}
+    default_account = None
+    if portfolio.accounts:
+        default_account = portfolio.accounts[0]
+    else:
+        default_account = Account(
+            portfolio_id=import_job.portfolio_id,
+            name=f"{import_job.source_type.value} Account",
+            account_type=import_job.source_type.value.replace("雪球", "BROKERAGE")
+            .replace("同花顺", "BROKERAGE")
+            .replace("招商银行", "BANK")
+            if import_job.source_type.value != "MANUAL"
+            else "BROKERAGE",
+            institution=import_job.source_type.value,
+            currency="CNY",
+        )
+        db.add(default_account)
+        db.commit()
+        db.refresh(default_account)
+
+    created_positions = []
+    created_transactions = []
+
+    for pos_data in import_job.confirmed_positions or []:
+        target_account_id = account_mapping.get(
+            pos_data.get("asset_symbol", ""), default_account.id
+        )
+        if not target_account_id:
+            target_account_id = default_account.id
+
+        db_position = Position(
+            account_id=target_account_id,
+            asset_symbol=pos_data.get("asset_symbol", ""),
+            asset_name=pos_data.get("asset_name"),
+            asset_type=pos_data.get("asset_type", "STOCK"),
+            quantity=pos_data.get("quantity", 0),
+            avg_cost=pos_data.get("avg_cost", 0),
+            current_price=pos_data.get("current_price", 0),
+            trade_currency=pos_data.get("trade_currency", "CNY"),
+        )
+        db.add(db_position)
+        created_positions.append(db_position)
+
+    for trans_data in import_job.confirmed_transactions or []:
+        target_account_id = account_mapping.get(
+            trans_data.get("asset_symbol", ""), default_account.id
+        )
+        if not target_account_id:
+            target_account_id = default_account.id
+
+        positions = (
+            db.query(Position)
+            .filter(
+                Position.account_id == target_account_id,
+                Position.asset_symbol == trans_data.get("asset_symbol"),
+            )
+            .all()
+        )
+        target_position = positions[0] if positions else None
+
+        if target_position:
+            db_transaction = Transaction(
+                position_id=target_position.id,
+                transaction_type=trans_data.get("transaction_type", "BUY"),
+                quantity=trans_data.get("quantity", 0),
+                price_per_unit=trans_data.get("price_per_unit", 0),
+                total_amount=trans_data.get("total_amount", 0),
+                currency=trans_data.get("currency", "CNY"),
+                transaction_date=trans_data.get("transaction_date", datetime.utcnow()),
+            )
+            db.add(db_transaction)
+            created_transactions.append(db_transaction)
+
+    import_job.status = ImportStatus.COMPLETED
+    db.commit()
+    db.refresh(import_job)
+    return import_job
+
+
+@imports_router.delete("/{import_id}")
+def cancel_import(import_id: str, db: Session = Depends(get_db)):
+    import_job = db.query(ImportJob).filter(ImportJob.id == import_id).first()
+    if not import_job:
+        raise HTTPException(status_code=404, detail="Import job not found")
+
+    import_job.status = ImportStatus.REJECTED
+    db.commit()
+    return {"message": "Import cancelled"}
+
+
+@router.get("/{portfolio_id}/imports", response_model=List[ImportJobResponse])
+def list_imports(portfolio_id: str, db: Session = Depends(get_db)):
+    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    return (
+        db.query(ImportJob)
+        .filter(ImportJob.portfolio_id == portfolio_id)
+        .order_by(ImportJob.created_at.desc())
+        .all()
+    )

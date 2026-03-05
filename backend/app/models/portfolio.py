@@ -124,6 +124,21 @@ class Transaction(Base):
     position = relationship("Position", back_populates="transactions")
 
 
+class ImportStatus(str, PyEnum):
+    PENDING = "PENDING"
+    ANALYZING = "ANALYZING"
+    REVIEWING = "REVIEWING"
+    COMPLETED = "COMPLETED"
+    REJECTED = "REJECTED"
+
+
+class SourceType(str, PyEnum):
+    XUEQIU = "雪球"
+    TONGHUASHUN = "同花顺"
+    ZHAOSHANG = "招商银行"
+    MANUAL = "MANUAL"
+
+
 class PortfolioSnapshot(Base):
     __tablename__ = "portfolio_snapshots"
 
@@ -142,3 +157,21 @@ class PortfolioSnapshot(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     portfolio = relationship("Portfolio", back_populates="snapshots")
+
+
+class ImportJob(Base):
+    __tablename__ = "import_jobs"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    portfolio_id = Column(String, ForeignKey("portfolios.id"), nullable=False)
+    status = Column(Enum(ImportStatus), default=ImportStatus.PENDING)
+    source_type = Column(Enum(SourceType), nullable=False)
+    screenshot_path = Column(String, nullable=True)
+    extracted_positions = Column(JSON, nullable=True)
+    extracted_transactions = Column(JSON, nullable=True)
+    confirmed_positions = Column(JSON, nullable=True)
+    confirmed_transactions = Column(JSON, nullable=True)
+    account_mapping = Column(JSON, nullable=True)
+    error_message = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
