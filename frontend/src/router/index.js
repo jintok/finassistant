@@ -3,6 +3,7 @@ import VueRouter from 'vue-router'
 import Portfolio from '@/views/Portfolio.vue'
 import News from '@/views/News.vue'
 import Analysis from '@/views/Analysis.vue'
+import Import from '@/views/Import.vue'
 
 Vue.use(VueRouter)
 
@@ -21,6 +22,11 @@ const routes = [
     path: '/analysis',
     name: 'Analysis',
     component: Analysis
+  },
+  {
+    path: '/import',
+    name: 'Import',
+    component: Import
   }
 ]
 

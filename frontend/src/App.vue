@@ -4,8 +4,9 @@
       <h1>FinAssistant</h1>
       <nav>
         <router-link to="/">Portfolio</router-link>
-        <router-link to="/news">News</router-link>
+        <router-link to="/import">Import</router-link>
         <router-link to="/analysis">Analysis</router-link>
+        <router-link to="/news">News</router-link>
       </nav>
     </header>
     <main>
