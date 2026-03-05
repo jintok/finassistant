@@ -640,6 +640,21 @@ def cancel_import(import_id: str, db: Session = Depends(get_db)):
     return {"message": "Import cancelled"}
 
 
+@imports_router.post("/{import_id}/analyze", response_model=ImportJobResponse)
+def analyze_import(import_id: str, db: Session = Depends(get_db)):
+    import_job = db.query(ImportJob).filter(ImportJob.id == import_id).first()
+    if not import_job:
+        raise HTTPException(status_code=404, detail="Import job not found")
+
+    if not import_job.screenshot_path:
+        raise HTTPException(status_code=400, detail="No screenshot uploaded")
+
+    import_job.status = ImportStatus.ANALYZING
+    db.commit()
+
+    return import_job
+
+
 @router.get("/{portfolio_id}/imports", response_model=List[ImportJobResponse])
 def list_imports(portfolio_id: str, db: Session = Depends(get_db)):
     portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
